@@ -2,14 +2,22 @@
 import Cropper from 'cropperjs'
 import 'cropperjs/dist/cropper.min.css'
 
+import _ from 'lodash'
+
 class Popart {
   
   constructor( nodeId = 'popart' ){
-    this.rootNode = this.init( nodeId );
+    this.canvas
+    this.ctx
+    this.defaultValues = {
+      threshold: [255, 200],
+      color: ["#ffffff", "#ff0000", "#000000"]
+    }
+    this.rootNode = this._init( nodeId )
   }
   
   _init( nodeId ){
-    
+
     let rootNode;
     
     if( !document.getElementById( nodeId ) ){
@@ -19,14 +27,184 @@ class Popart {
     }
     
     rootNode = document.getElementById( nodeId );
+
+    this.preview = this._createElement( 'div', {
+      id: "preview"
+    }, rootNode )
+
+    this.controls = this._createElement( 'div', {
+      id: "controls"
+    }, rootNode )
     
     let canvas = document.createElement('canvas');
-    rootNode.appendChild( canvas );
+    canvas.id = "canvas";
+    this.preview.appendChild( canvas );
+
+    this.canvas = document.getElementById( canvas.id );
+    this.ctx = this.canvas.getContext('2d');
+
+    /* Create image input */
+    this._createElement( 'input', {
+      type: "file",
+      id: "imageFile",
+      name: "file",
+      events: {
+        change: this._handleFileSelect
+      }
+    }, this.controls)
+
+    /* Create threshold sliders */
+    for(let i = 0; i<=1; i++){
+      this._createElement( 'input', {
+        type: "range",
+        id: "slider" + ( i === 0 ? '' : i+1 ),
+        min: 0,
+        max: 255,
+        value: this.defaultValues.threshold[i],
+        events: {
+          change: this.onChangeInputValues
+        }
+      }, this._createElement('p', {}, this.controls) )
+    }
+
+    /* Create color inputs */
+    for(let i = 0; i<=2; i++){
+      this._createElement( 'input', {
+        type: "color",
+        id: "color" + ( i === 0 ? '' : i+1 ),
+        value: this.defaultValues.color[i],
+        events: {
+          change: this.onChangeInputValues
+        }
+      }, this.controls )
+    }
+
+    /* Create download link */
+    this.downloadLink = this._createElement( 'a',  {
+        text: "Bild herunterladen",
+        download: "popart.png",
+        class: "button"
+    }, this.controls )
     
-    rootNode = document.createElement('div');
+    this.cropperDiv = this._createElement( 'div', {
+      id: "cropper"
+    }, this.controls )
     
     return rootNode;
     
+  }
+
+  onChangeInputValues(){
+	  this._modifyThreshold(document.getElementById('slider').value, document.getElementById('slider2').value, document.getElementById('color').value, document.getElementById('color2').value, document.getElementById('color3').value);
+  }
+
+  _modifyThreshold(threshold, threshold2, color, color2, color3 ){ 
+    this.ctx.drawImage(this.image, 0, 0)
+    let imageData = this.ctx.getImageData(0, 0, canvas.width, canvas.height);
+    let data = imageData.data;
+    color = this.hexToRgb(color);
+    color2 = this.hexToRgb(color2);
+    color3 = this.hexToRgb(color3);
+    for (var i = 0; i < data.length; i += 4) {
+      var avg = (data[i] + data[i + 1] + data[i + 2]) / 3;
+      data[i]     = Math.round(avg/threshold) ? color.r : Math.round(avg/threshold2) ? color2.r : color3.r;
+      data[i + 1] = Math.round(avg/threshold) ? color.g : Math.round(avg/threshold2) ? color2.g : color3.g;
+      data[i + 2] = Math.round(avg/threshold) ? color.b : Math.round(avg/threshold2) ? color2.b : color3.b;
+    }
+    console.log( 'Image processed' );
+    this.ctx.putImageData(imageData, 0, 0);
+  }
+
+  _createElement ( tagName, properties, node ){
+    let tag = document.createElement( tagName )
+    Object.keys(properties).map((key) => {
+      let value = properties[key]
+      if( key === "events" ){
+        Object.keys(value).map((k) => {
+          tag.addEventListener(k, value[k].bind(this))
+        })
+      }
+      else if( key === "text" ){
+        tag.innerHTML = value
+      }
+      else {
+        tag.setAttribute(key, value);
+      }
+    })
+    if( tag ){
+      node.appendChild( tag )
+    }
+    return tag
+  }
+
+  _handleFileSelect(e) {
+
+    let file = e.target.files[0],
+        _that = this
+
+    // Only process image files.
+    if (file.type.match('image.*')) {
+    
+      let reader = new FileReader();
+
+      // Closure to capture the file information.
+      reader.onload = ((f) => (
+        function(e) {
+          let img = new Image()
+          img.src = e.target.result
+          img.onload = (() => {
+
+            _that.image = img;
+            _that.canvas.setAttribute("width", img.naturalWidth);
+            _that.canvas.setAttribute("height", img.naturalHeight);
+            _that.ctx.drawImage(img, 0, 0)
+
+            _that.cropperDiv.innerHTML = ''
+
+            _that.outputImage = _that._createElement( 'img', {
+              id: "output",
+              src: _that.canvas.toDataURL("image/png")
+            }, _that.cropperDiv )
+
+           this.renderCroppedImage = () => {
+              console.log('crop');
+              let img = _that.getCroppedImage()
+              img.onload = ((e) => {
+                let img = e.currentTarget
+                _that.image = img
+                _that.canvas.setAttribute("width", img.naturalWidth);
+                _that.canvas.setAttribute("height", img.naturalHeight);
+                _that.ctx.drawImage(img, 0, 0)
+                _that.onChangeInputValues()
+                _that.downloadLink.setAttribute('href', _that.canvas.toDataURL("image/png").replace("image/png", "image/octet-stream"))
+              })
+            }
+
+            _that.cropper = new Cropper(_that.outputImage, {
+              aspectRatio: 1,
+              zoomable: false,
+              viewMode: 1,
+              crop: _.debounce(this.renderCroppedImage, 200)
+            })
+            
+            _that.onChangeInputValues()
+
+          }
+        )
+      }
+      ))(file);
+
+      // Read in the image file as a data URL.
+      reader.readAsDataURL(file);
+
+    }
+
+  }
+
+  getCroppedImage(){
+    let img = new Image();
+    img.src = this.cropper.getCroppedCanvas().toDataURL();
+    return img
   }
   
   hexToRgb(hex) {
@@ -55,4 +233,4 @@ class Popart {
 }
 
 const p = new Popart();
-console.log( p.getRootNode );
+window.p = p;

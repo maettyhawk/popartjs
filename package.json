@@ -2,7 +2,8 @@
   "name": "popart-js",
   "version": "1.0.0",
   "scripts": {
-    "build": "babel src -d dest"
+    "build": "babel src -d dest",
+    "server": "node_modules/.bin/webpack-dev-server"
   },
   "devDependencies": {
     "babel-cli": "^6.23.0",
@@ -14,6 +15,7 @@
     "cropperjs": "^1.0.0-beta.1",
     "css-loader": "^0.26.1",
     "style-loader": "^0.13.1",
-    "webpack": "^2.2.1"
+    "webpack": "^2.2.1",
+    "webpack-dev-server": "^2.4.1"
   }
 }
