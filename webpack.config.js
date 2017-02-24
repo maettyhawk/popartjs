@@ -1,7 +1,9 @@
+var webpack = require('webpack');
+
 module.exports = {
   entry: "./src/popart.js",
   output: {
-      path: __dirname,
+      path: __dirname + '/dest/',
       filename: "popart.dev.js"
   },
   module: {
@@ -16,5 +18,12 @@ module.exports = {
       },
       { test: /\.css$/, loader: "style-loader!css-loader" }
     ]
-  }
+  },
+  plugins: [
+    new webpack.optimize.UglifyJsPlugin({
+        compress: {
+            warnings: false
+        }
+    })
+  ]
 }

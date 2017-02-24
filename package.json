@@ -2,7 +2,7 @@
   "name": "popart-js",
   "version": "1.0.0",
   "scripts": {
-    "build": "babel src -d dest",
+    "build": "node ./node_modules/webpack/bin/webpack.js",
     "server": "node_modules/.bin/webpack-dev-server"
   },
   "devDependencies": {
