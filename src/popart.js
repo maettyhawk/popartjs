@@ -6,10 +6,11 @@ import _ from 'lodash'
 
 class Popart {
   
-  constructor( nodeId = 'popart' ){
+  constructor( nodeId = 'popart', minSize = 500 ){
     this.canvas
     this.ctx
     this.defaultValues = {
+      minSize: minSize,
       threshold: [255, 200],
       color: ["#ffffff", "#ff0000", "#000000"]
     }
@@ -48,6 +49,7 @@ class Popart {
       type: "file",
       id: "imageFile",
       name: "file",
+      accept: "image/*",
       events: {
         change: this._handleFileSelect
       }
@@ -155,39 +157,68 @@ class Popart {
           img.onload = (() => {
 
             _that.image = img;
-            _that.canvas.setAttribute("width", img.naturalWidth);
-            _that.canvas.setAttribute("height", img.naturalHeight);
-            _that.ctx.drawImage(img, 0, 0)
 
-            _that.cropperDiv.innerHTML = ''
-
-            _that.outputImage = _that._createElement( 'img', {
-              id: "output",
-              src: _that.canvas.toDataURL("image/png")
-            }, _that.cropperDiv )
-
-           this.renderCroppedImage = () => {
-              console.log('crop');
-              let img = _that.getCroppedImage()
-              img.onload = ((e) => {
-                let img = e.currentTarget
-                _that.image = img
-                _that.canvas.setAttribute("width", img.naturalWidth);
-                _that.canvas.setAttribute("height", img.naturalHeight);
-                _that.ctx.drawImage(img, 0, 0)
-                _that.onChangeInputValues()
-                _that.downloadLink.setAttribute('href', _that.canvas.toDataURL("image/png").replace("image/png", "image/octet-stream"))
-              })
+            if( img.naturalWidth < _that.defaultValues.minSize || img.naturalHeight < _that.defaultValues.minSize ){
+              alert('The image must have a width/height not less than' + _that.defaultValues.minSize + 'px.');
             }
+            else {
 
-            _that.cropper = new Cropper(_that.outputImage, {
-              aspectRatio: 1,
-              zoomable: false,
-              viewMode: 1,
-              crop: _.debounce(this.renderCroppedImage, 200)
-            })
-            
-            _that.onChangeInputValues()
+              _that.canvas.setAttribute("width", img.naturalWidth);
+              _that.canvas.setAttribute("height", img.naturalHeight);
+              _that.ctx.drawImage(img, 0, 0)
+
+              _that.cropperDiv.innerHTML = ''
+
+              _that.outputImage = _that._createElement( 'img', {
+                id: "output",
+                src: _that.canvas.toDataURL("image/png")
+              }, _that.cropperDiv )
+
+            this.renderCroppedImage = () => {
+                console.log('crop');
+                let img = _that.getCroppedImage()
+                img.onload = ((e) => {
+                  let img = e.currentTarget
+                  _that.image = img
+                  _that.canvas.setAttribute("width", img.naturalWidth);
+                  _that.canvas.setAttribute("height", img.naturalHeight);
+                  _that.ctx.drawImage(img, 0, 0)
+                  _that.onChangeInputValues()
+                  _that.downloadLink.setAttribute('href', _that.canvas.toDataURL("image/png").replace("image/png", "image/octet-stream"))
+                })
+              }
+
+              this.checkMinCropBoxSize = () => {
+                // Get the same data as above 
+                let origData = _that.cropper.getCanvasData(),
+                    cropBoxData = _that.cropper.getCropBoxData(),
+                    smallerSide = origData.naturalHeight >= origData.naturalWidth ? origData.naturalWidth : origData.naturalHeight,
+                    canvasCropBoxRatio = origData.height / smallerSide
+
+                console.log( canvasCropBoxRatio )
+                console.log( origData, cropBoxData )
+
+                // Modify the dimensions to quit from disabled mode
+                if (cropBoxData.height/canvasCropBoxRatio <= _that.defaultValues.minSize) {
+                    cropBoxData.width = _that.defaultValues.minSize*canvasCropBoxRatio;
+                    cropBoxData.height = _that.defaultValues.minSize*canvasCropBoxRatio;
+
+                    _that.cropper.setCropBoxData(cropBoxData);
+                }
+              }
+
+              _that.cropper = new Cropper(_that.outputImage, {
+                aspectRatio: 1,
+                zoomable: false,
+                viewMode: 1,
+                cropstart: this.checkMinCropBoxSize,
+                cropmove: this.checkMinCropBoxSize,
+                crop: _.debounce(this.renderCroppedImage, 200)
+              })
+              
+              _that.onChangeInputValues()
+
+            }
 
           }
         )

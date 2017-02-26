@@ -3,8 +3,9 @@ var webpack = require('webpack');
 module.exports = {
   entry: "./src/popart.js",
   output: {
-      path: __dirname + '/dest/',
-      filename: "popart.dev.js"
+      filename: "popart.min.js",
+      path: __dirname + "/dest",
+      publicPath: "/dest"
   },
   module: {
     loaders: [
